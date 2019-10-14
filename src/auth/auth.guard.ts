@@ -3,11 +3,12 @@ import { Reflector } from '@nestjs/core';
 import * as Logger from 'bunyan';
 import { Observable } from 'rxjs';
 import { Request } from 'express';
-import { ReflectMetadata } from '@nestjs/common';
+import { SetMetadata } from '@nestjs/common';
 import { createLogger } from '../gcloud/logging';
 import { Context, isContext } from '../datastore/context';
 import { Configuration, IUser } from '../index';
 import { CONFIGURATION } from '../configuration';
+import { GqlExecutionContext } from '@nestjs/graphql';
 
 const logger = createLogger('auth-guard');
 
@@ -16,11 +17,14 @@ interface RequestWithSessionAndDatastore extends Request {
   context: Context;
 }
 
-export const Roles = (...roles: string[]) => ReflectMetadata('roles', roles);
-export const AllowAnonymous = () => ReflectMetadata('allowAnonymous', true);
-export const Task = () => ReflectMetadata('secure-header', 'x-appengine-taskname');
-export const Cron = () => ReflectMetadata('secure-header', 'x-appengine-cron');
-export const System = () => ReflectMetadata('system', true);
+export const Roles = (...roles: string[]) => SetMetadata('roles', roles);
+export const AllowAnonymous = () => SetMetadata('allowAnonymous', true);
+export const Task = () => SetMetadata('secure-header', 'x-appengine-taskname');
+export const Cron = () => SetMetadata('secure-header', 'x-appengine-cron');
+export const System = () => SetMetadata('system', true);
+
+const getRequest = (context: ExecutionContext): RequestWithSessionAndDatastore =>
+  GqlExecutionContext.create(context).getContext<Context>().request as RequestWithSessionAndDatastore;
 
 const reflectValue = <T>(reflector: Reflector, key: string, context: ExecutionContext, defaultValue: T) => {
   const methodValue = reflector.get<T>(key, context.getHandler());
@@ -68,7 +72,7 @@ function isSystemCall(reflector: Reflector, context: ExecutionContext): boolean 
 async function isAuthorizedSystemCall(reflector: Reflector, context: ExecutionContext, secret: Buffer) {
   const { verify } = await import('jsonwebtoken');
 
-  const { headers } = context.switchToHttp().getRequest<Request>();
+  const { headers } = getRequest(context);
 
   if (!headers.authorization) {
     return false;
@@ -97,7 +101,7 @@ async function isAuthorizedSystemCall(reflector: Reflector, context: ExecutionCo
 }
 
 function hasSecureHeader(reflector: Reflector, context: ExecutionContext): boolean {
-  const { headers } = context.switchToHttp().getRequest<RequestWithSessionAndDatastore>();
+  const { headers } = getRequest(context);
 
   if (!headers) {
     return false;
@@ -113,7 +117,7 @@ function hasSecureHeader(reflector: Reflector, context: ExecutionContext): boole
 }
 
 function getUser(context: ExecutionContext): IUser | undefined {
-  const request = context.switchToHttp().getRequest<RequestWithSessionAndDatastore>();
+  const request = getRequest(context);
 
   if (request.context && request.context.user) {
     return request.context.user;

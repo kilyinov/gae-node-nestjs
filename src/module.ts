@@ -1,7 +1,6 @@
 import { ForwardReference, Global, MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { GraphQLModule } from '@nestjs/graphql';
-import { fileLoader, mergeTypes } from 'merge-graphql-schemas';
 import { AuthConfigurer } from './auth/auth.configurer';
 import { AuthController } from './auth/auth.controller';
 import { AuthResolver } from './auth/auth.graphql';
@@ -15,7 +14,6 @@ import { Configuration } from './configuration';
 import { DatastoreProvider } from './datastore/datastore.provider';
 import { NotFoundFilter } from './filter';
 import { StorageProvider } from './gcloud/storage.provider';
-import { GraphQLMiddleware } from './graphql/GraphQLMiddleware';
 import { ContextMiddleware } from './interceptor';
 import { GmailConfigurer } from './mail/gmail/gmail.configurer';
 import { GmailController } from './mail/gmail/gmail.controller';
@@ -25,6 +23,8 @@ import { MailDiverter } from './mail/mail.diverter';
 import { LoggingMailSenderStub } from './mail/mail.logging.stub';
 import { MAIL_SENDER } from './mail/mail.sender';
 import { SearchService } from './search/search.service';
+import { GraphQLDateTime, GraphQLTime } from 'graphql-iso-date';
+import * as _ from 'lodash';
 
 type ClassType = new (...args: any[]) => any;
 type ClassTypeOrReference = ClassType | ForwardReference<any>;
@@ -74,7 +74,6 @@ export interface Options {
       provide: APP_GUARD,
       useClass: AuthGuard,
     },
-    GraphQLMiddleware,
   ],
   exports: [
     StorageProvider,
@@ -91,17 +90,26 @@ export interface Options {
   controllers: [AuthController, GmailController],
 })
 export class GCloudModule implements NestModule {
-  constructor(private readonly graphqlConfigurer: GraphQLMiddleware) {}
-
   configure(consumer: MiddlewareConsumer) {
     consumer.apply(ContextMiddleware).forRoutes('*');
-    consumer.apply(GraphQLMiddleware).forRoutes('/api/graphql');
   }
 
   static forConfiguration(options: Options) {
     return {
       module: GCloudModule,
-      imports: [options.configurationModule, options.userModule, GraphQLModule],
+      imports: [
+        options.configurationModule,
+        options.userModule,
+        GraphQLModule.forRoot({
+          path: '/api/graphql',
+          context: (props: any) => _.get(props.req, 'context'),
+          typePaths: ['./src/**/*.graphqls', './node_modules/@3wks/gae-node-nestjs/dist/**/*.graphqls'],
+          resolvers: {
+            Time: GraphQLTime,
+            DateAndTime: GraphQLDateTime,
+          },
+        }),
+      ],
     };
   }
 }
