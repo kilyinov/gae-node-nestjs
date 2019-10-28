@@ -29,7 +29,7 @@ describe('AuthService', () => {
   beforeEach(() => {
     reset(credentialRepository);
     reset(userService);
-    configuration = { auth: {} } as Configuration;
+    configuration = {auth: {}} as Configuration;
     when(userService.create(anything(), anything())).thenCall(async (_: any, user: any) => user);
     when(userService.update(anything(), anything(), anything())).thenCall(async (_: any, _id: any, user: any) => user);
     authService = new AuthService(instance(credentialRepository), instance(userService), configuration);
@@ -92,7 +92,7 @@ describe('AuthService', () => {
         id: 'username',
         password: await hashPassword('password'),
       });
-      when(userService.get(context, '12345')).thenResolve({ id: '12345', enabled: false });
+      when(userService.get(context, '12345')).thenResolve({id: '12345', enabled: false});
 
       await expect(authService.validateUser(context, 'username', 'password')).rejects.toHaveProperty(
         'message',
@@ -107,7 +107,7 @@ describe('AuthService', () => {
         id: 'username',
         password: await hashPassword('password'),
       });
-      when(userService.get(context, '12345')).thenResolve({ id: '12345', enabled: true });
+      when(userService.get(context, '12345')).thenResolve({id: '12345', enabled: true});
 
       await expect(authService.validateUser(context, 'username', 'password')).resolves.toEqual({
         id: '12345',
@@ -203,7 +203,7 @@ describe('AuthService', () => {
         userId: '12345',
         id: 'test@example.com',
       });
-      when(userService.get(context, '12345')).thenResolve({ id: '12345', enabled: false });
+      when(userService.get(context, '12345')).thenResolve({id: '12345', enabled: false});
       configuration.auth = {
         google: {
           signUpEnabled: true,
@@ -226,7 +226,7 @@ describe('AuthService', () => {
         userId: '12345',
         id: 'test@example.com',
       });
-      const existingUser = { id: '12345', enabled: true };
+      const existingUser = {id: '12345', enabled: true};
       when(userService.get(context, '12345')).thenResolve(existingUser);
       configuration.auth = {
         google: {
@@ -269,7 +269,7 @@ describe('AuthService', () => {
         userId: '12345',
         id: 'test@example.com',
       });
-      const existingUser = { id: '12345', enabled: true };
+      const existingUser = {id: '12345', enabled: true};
       when(userService.get(context, '12345')).thenResolve(existingUser);
 
       await expect(authService.validateUserOidc(context, profile, true, ['default-role'])).resolves.toEqual({
@@ -287,7 +287,7 @@ describe('AuthService', () => {
         userId: '12345',
         id: 'test@example.com',
       });
-      const existingUser = { id: '12345', enabled: true };
+      const existingUser = {id: '12345', enabled: true};
       when(userService.get(context, '12345')).thenResolve(existingUser);
 
       await expect(authService.validateUserOidc(context, profile, true, ['default-role'])).resolves.toEqual({
@@ -304,7 +304,7 @@ describe('AuthService', () => {
         userId: '12345',
         id: 'test@example.com',
       });
-      const existingUser = { id: '12345', enabled: true };
+      const existingUser = {id: '12345', enabled: true};
       when(userService.get(context, '12345')).thenResolve(existingUser);
 
       await expect(authService.validateUserOidc(context, profile, true, ['default-role'])).resolves.toEqual({
@@ -355,7 +355,7 @@ describe('AuthService', () => {
         userId: '12345',
         id: 'test@example.com',
       });
-      when(userService.get(context, '12345')).thenResolve({ id: '12345', enabled: false });
+      when(userService.get(context, '12345')).thenResolve({id: '12345', enabled: false});
       await expect(authService.validateUserOidc(context, profile, true)).rejects.toHaveProperty(
         'message',
         'User account is disabled',
@@ -408,7 +408,7 @@ describe('AuthService', () => {
         roles: ['user', 'admin'],
         enabled: true,
         orgId: 'org1',
-        props: { prop1: 'val1' },
+        props: {prop1: 'val1'},
       };
       when(userService.getByEmail(context, 'test@example.com')).thenResolve(existingUser);
       await expect(
@@ -420,7 +420,7 @@ describe('AuthService', () => {
         name: 'John Smith',
         roles: ['user'],
         orgId: 'org2',
-        props: { prop1: 'val2' },
+        props: {prop1: 'val2'},
       });
       verify(userService.update(context, '1234', anything())).once();
     });
@@ -453,4 +453,58 @@ describe('AuthService', () => {
       ).rejects.toHaveProperty('message', 'Fake login secret invalid');
     });
   });
+
+  describe('validateLinkedIn', () => {
+    const profile = {
+      id: '12345',
+      emails: [
+        {
+          verified: true,
+          value: 'test@example.com',
+        },
+      ],
+      displayName: 'test',
+    };
+
+    it('returns the user when validation succeeded', async () => {
+      when(credentialRepository.get(context, 'test@example.com')).thenResolve({
+        type: 'linkedin',
+        userId: '12345',
+        id: 'test@example.com',
+      });
+      const existingUser = {id: '12345', enabled: true};
+      when(userService.get(context, '12345')).thenResolve(existingUser);
+      configuration.auth = {
+        linkedin: {
+          signUpEnabled: true,
+          signUpRoles: ['user '],
+          clientId: '',
+          secret: '',
+        },
+      };
+
+      await expect(authService.validateUserLinkedIn(context, profile)).resolves.toEqual(existingUser);
+    });
+
+    it('fails when there are no matching email addresses', async () => {
+      await expect(
+        authService.validateUserLinkedIn(context, {
+          ...profile,
+          emails: [],
+        }),
+      ).rejects.toHaveProperty('message', 'No credentials found for user');
+    });
+
+    it('fails when the account is not found', async () => {
+      authService = new AuthService(
+        instance(credentialRepository),
+        {} as any,
+        {
+          auth: {
+            linkedin: {},
+          },
+        } as Configuration,
+      );
+    })
+  })
 });

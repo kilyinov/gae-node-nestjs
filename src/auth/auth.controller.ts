@@ -212,4 +212,25 @@ export class AuthController {
       }
     });
   }
+
+  @AllowAnonymous()
+  @Get('signin/linkedin')
+  signInLinkedIn(@Req() req: Request, @Res() res: Response, @Next() next: () => void) {
+    this.authConfigurer.beginAuthenticateLinkedIn()(req, res, next);
+  }
+
+  @AllowAnonymous()
+  @Get('signin/linkedin/callback')
+  completeSignInLinkedIn(@Req() req: Request, @Res() res: Response) {
+    this.authConfigurer.completeAuthenticateLinkedIn()(req, res, (err: any) => {
+      if (req.user) {
+        this.authListener.onLogin(req);
+        res.redirect(`/`);
+      } else {
+        this.logger.warn('Login with LinkedIn failed', err);
+        res.redirect(`/signin?error=${encodeURIComponent('Login with LinkedIn failed.')}`);
+      }
+    });
+  }
+
 }

@@ -258,6 +258,60 @@ export class AuthService {
   }
 
   /**
+   * Validate a user using credentials from a LinkedIn account
+   *
+   * If the user does not currently have an account their account will be created provided the signUpEnabled
+   *  flag is enabled. If an account is created via LinkedIn signup then they will be given roles from the
+   *  signUpRoles configuration option
+   *
+   * @param context Request context
+   * @param inputProfile The profile returned from LinkedIn
+   */
+  @Transactional()
+  async validateUserLinkedIn(context: Context, inputProfile: any): Promise<IUser> {
+    const accountEmails = inputProfile.emails[0];
+
+    if (!accountEmails) {
+      throw new AuthenticationFailedException('No credentials found for user');
+    }
+
+    const email = accountEmails.value;
+    const account = await this.getAccountByEmail(context, email);
+
+    // If there is no account registered there are two options:
+    // 1. Create an account for the user (if we allow signup via LinkedIn auth)
+    // 2. Throw an error
+    //
+    // Accounts created via google auth have the default roles list
+    if (!account) {
+      if (!this.configurationProvider.auth.linkedin || !this.configurationProvider.auth.linkedin.signUpEnabled) {
+        throw new AuthenticationFailedException('No credentials found for user');
+      }
+
+      const createdUser = await this.userService.create(context, {
+        roles: this.configurationProvider.auth.linkedin.signUpRoles,
+        email,
+        name: inputProfile.displayName,
+        enabled: true,
+      });
+
+      await this.authRepository.save(context, {
+        id: email,
+        type: 'linkedin',
+        userId: createdUser.id,
+      });
+
+      return createdUser;
+    }
+
+    if (account.type !== 'linkedin' && account.type !== 'password') {
+      throw new AuthenticationFailedException('No credentials found for user');
+    }
+
+    return await this.loadUserAndCheckEnabled(context, account.userId);
+  }
+
+  /**
    * Create a new user account
    *
    * If an account already exists for the provided email address it will be returned instead

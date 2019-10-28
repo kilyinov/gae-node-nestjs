@@ -41,7 +41,8 @@ export class UserInviteRepository extends Repository<UserInvite> {
   }
 }
 
-const externalAuthTypeEnum = t.union([t.literal('google'), t.literal('saml'), t.literal('auth0'), t.literal('oidc')]);
+const externalAuthTypeEnum = t.union([t.literal('google'), t.literal('saml'), t.literal('auth0'), t.literal('oidc'),
+  t.literal('linkedin')]);
 
 const loginCredentials = t.clean(
   t.union([

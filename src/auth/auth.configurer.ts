@@ -8,6 +8,7 @@ import * as passport from 'passport';
 import { use } from 'passport';
 import { Profile, Strategy as Auth0Strategy } from 'passport-auth0';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
+import { Strategy as LinkedInStrategy } from 'passport-linkedin-oauth2';
 import { IVerifyOptions, Strategy as LocalStrategy } from 'passport-local';
 import { Strategy as OidcStrategy } from 'passport-openidconnect';
 import { Strategy as SamlStrategy } from 'passport-saml';
@@ -24,6 +25,7 @@ const AUTH0_SIGNIN = 'auth0';
 const OIDC_SIGNIN = 'oidc';
 const LOCAL_SIGNIN = 'local-signin';
 const FAKE_SIGNIN = 'fake-signin';
+const LINKEDIN_SIGNIN = 'linkedin';
 
 const DEFAULT_FAILURE_REDIRECT = '/';
 
@@ -131,6 +133,20 @@ export class AuthConfigurer {
       );
       this.logger.info(`Configured ${OIDC_SIGNIN} authentication strategy`);
     }
+
+    if (this.configuration.auth.linkedin && this.configuration.auth.linkedin.enabled) {
+      use(
+        new LinkedInStrategy(
+          {
+            clientID: this.configuration.auth.linkedin.clientId,
+            clientSecret: this.configuration.auth.linkedin.secret,
+            callbackURL: `${this.configuration.host}/auth/signin/linkedin/callback`,
+            scope: ['r_liteprofile', 'r_emailaddress'],
+          },
+          this.validateLinkedIn,
+        ),
+      );
+    }
   }
 
   beginAuthenticateGoogle() {
@@ -180,6 +196,19 @@ export class AuthConfigurer {
   completeAuthenticateAuth0() {
     return passport.authenticate(AUTH0_SIGNIN, {
       failureRedirect: this.configuration.auth.auth0!.failureRedirect || DEFAULT_FAILURE_REDIRECT,
+    });
+  }
+
+  beginAuthenticateLinkedIn() {
+    const options = {
+      scope: ['r_emailaddress', 'r_liteprofile'],
+    };
+    return passport.authenticate(LINKEDIN_SIGNIN, options);
+  }
+
+  completeAuthenticateLinkedIn() {
+    return passport.authenticate(LINKEDIN_SIGNIN, {
+      failureRedirect: this.configuration.auth.linkedin!.failureRedirect || DEFAULT_FAILURE_REDIRECT,
     });
   }
 
@@ -268,6 +297,13 @@ export class AuthConfigurer {
 
       return this.authService.validateUserAuth0(newContext(this.datastore), email, name, orgId, roles, props);
     });
+
+  validateLinkedIn = async (
+    accessToken: string,
+    refreshToken: string,
+    profile: object,
+    done: (error: Error | null, user: IUser | false) => void,
+  ) => this.validateAuth(done, () => this.authService.validateUserLinkedIn(newContext(this.datastore), profile));
 
   validateAuth = async (
     done: (error: Error | null, user: IUser | false, options?: IVerifyOptions) => void,

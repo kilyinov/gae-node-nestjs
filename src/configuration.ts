@@ -57,6 +57,14 @@ export interface Configuration {
       replaceAuth?: boolean;
       failureRedirect?: string;
     };
+    linkedin?: {
+      enabled?: boolean;
+      clientId: string;
+      secret: string;
+      signUpEnabled: boolean;
+      signUpRoles?: string[];
+      failureRedirect?: string;
+    }
   };
   devHooks?: {
     disableLocalMailLogger?: boolean;
